@@ -218,3 +218,24 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# FixMyCampus Project Specifics
+.env
+*.db
+*.sqlite3
+instance/
+static/uploads/*
+!static/uploads/.gitkeep
+
+
+
+# Vite & Node
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# Environment variables
+.env
+.env.*
+!.env.example
