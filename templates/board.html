@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Public Issues Board - FixMyCampus{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+    <div>
+      <h1 style="font-size: 1.85rem; font-weight: 800; color: var(--text-main); margin-bottom: 0.25rem;">
+        Public Campus Issues Board
+      </h1>
+      <p style="color: var(--text-muted); font-size: 0.9rem;">
+        Browse civic reports, vote with "Me Too" to elevate high-impact problems, and monitor resolution timelines.
+      </p>
+    </div>
+    <a href="{{ url_for('report') }}" class="btn btn-primary">
+      <span>➕</span>
+      <span>Report New Issue</span>
+    </a>
+  </div>
+
+  <!-- Search & Filter Controls -->
+  <div class="card" style="padding: 1rem 1.25rem; margin-bottom: 1.5rem;">
+    <form method="GET" action="{{ url_for('public_board') }}" style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+      <!-- Search Input -->
+      <div style="flex: 1; min-width: 220px;">
+        <input type="text" name="search" class="form-control" placeholder="Search by title, room, landmark, or ID..." value="{{ search_query }}">
+      </div>
+
+      <!-- Location Filter -->
+      <div style="min-width: 160px;">
+        <select name="location" class="form-control" onchange="this.form.submit()">
+          <option value="All">All Locations</option>
+          {% for loc in locations %}
+            <option value="{{ loc }}" {% if current_location == loc %}selected{% endif %}>{{ loc }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Sort Options -->
+      <div style="min-width: 150px;">
+        <select name="sort" class="form-control" onchange="this.form.submit()">
+          <option value="upvotes" {% if current_sort == 'upvotes' %}selected{% endif %}>🔥 Most Upvoted</option>
+          <option value="newest" {% if current_sort == 'newest' %}selected{% endif %}>🕒 Newest First</option>
+          <option value="urgency" {% if current_sort == 'urgency' %}selected{% endif %}>⚠️ Highest Urgency</option>
+          <option value="oldest" {% if current_sort == 'oldest' %}selected{% endif %}>⌛ Oldest First</option>
+        </select>
+      </div>
+
+      <button type="submit" class="btn btn-secondary">
+        <span>🔍 Search</span>
+      </button>
+    </form>
+
+    <!-- Category Pills -->
+    <div style="margin-top: 1rem;">
+      <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-light); text-transform: uppercase; margin-bottom: 0.4rem; display: block;">
+        Filter by Category:
+      </span>
+      <div class="filter-pills" style="margin-bottom: 0.5rem;">
+        <a href="{{ url_for('public_board', category='All', status=current_status, location=current_location, sort=current_sort, search=search_query) }}" class="filter-pill {% if current_category == 'All' %}active{% endif %}">
+          All ({{ complaints|length }})
+        </a>
+        {% for cat in categories %}
+          <a href="{{ url_for('public_board', category=cat, status=current_status, location=current_location, sort=current_sort, search=search_query) }}" class="filter-pill {% if current_category == cat %}active{% endif %}">
+            {{ cat }}
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Status Pills -->
+    <div>
+      <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-light); text-transform: uppercase; margin-bottom: 0.4rem; display: block;">
+        Filter by Status:
+      </span>
+      <div class="filter-pills" style="margin-bottom: 0;">
+        <a href="{{ url_for('public_board', category=current_category, status='All', location=current_location, sort=current_sort, search=search_query) }}" class="filter-pill {% if current_status == 'All' %}active{% endif %}">
+          All Statuses
+        </a>
+        {% for st in statuses %}
+          <a href="{{ url_for('public_board', category=current_category, status=st, location=current_location, sort=current_sort, search=search_query) }}" class="filter-pill {% if current_status == st %}active{% endif %}">
+            {{ st }}
+          </a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Complaint Cards Grid -->
+  {% if complaints %}
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1.25rem;">
+      {% for c in complaints %}
+        <div class="complaint-card">
+          <div class="complaint-header">
+            <span class="complaint-id">{{ c.complaint_id }}</span>
+            <div style="display: flex; gap: 0.4rem; align-items: center;">
+              <span class="badge badge-{{ c.urgency|lower }}">{{ c.urgency }}</span>
+              <span class="badge badge-{{ c.status|lower|replace(' ', '') }}">{{ c.status }}</span>
+            </div>
+          </div>
+
+          <a href="{{ url_for('complaint_detail', complaint_id=c.id) }}" class="complaint-title">
+            {{ c.title }}
+          </a>
+
+          <p class="complaint-desc">{{ c.description }}</p>
+
+          <div class="complaint-meta">
+            <span>📍 {{ c.location }} ({{ c.room_block }})</span>
+            <span>🏢 {{ c.assigned_department }}</span>
+            <span>🕒 {{ time_ago(c.created_at) }}</span>
+          </div>
+
+          <!-- Photo Thumbnail if present -->
+          {% if c.photos %}
+            <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
+              {% for p in c.photos[:3] %}
+                <img src="{{ url_for('static', filename='uploads/' ~ p) }}" alt="Proof" style="width: 50px; height: 50px; border-radius: var(--radius-sm); object-fit: cover; border: 1px solid var(--border);" onerror="this.style.display='none'">
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          <div class="complaint-footer">
+            <button type="button" class="upvote-btn {% if c.has_upvoted %}upvoted{% endif %}" data-id="{{ c.id }}" title="Click if this problem affects you too">
+              <span>👍 Me Too</span>
+              <span class="upvote-count">{{ c.upvotes }}</span>
+            </button>
+
+            <a href="{{ url_for('complaint_detail', complaint_id=c.id) }}" class="btn btn-outline btn-sm">
+              <span>View Timeline</span>
+              <span>&rarr;</span>
+            </a>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="card" style="text-align: center; padding: 3rem 1rem;">
+      <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔍</div>
+      <h3 style="font-weight: 700; margin-bottom: 0.5rem;">No matching campus issues found</h3>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1.5rem;">
+        Try clearing your search query or selecting a different filter.
+      </p>
+      <a href="{{ url_for('public_board') }}" class="btn btn-secondary">Reset Filters</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+
+{% block title %}Report a Campus Issue - FixMyCampus{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 760px;">
+  <div style="margin-bottom: 2rem;">
+    <div class="hero-pill">
+      <span>📸</span>
+      <span>Student Civic Incident Reporting</span>
+    </div>
+    <h1 style="font-size: 2rem; font-weight: 800; color: var(--text-main); margin-bottom: 0.5rem;">
+      Report a Campus Problem
+    </h1>
+    <p style="color: var(--text-muted); font-size: 0.95rem;">
+      Provide details and photos. The system generates your unique tracking ID and routes your ticket directly to the responsible campus department.
+    </p>
+  </div>
+
+  <form action="{{ url_for('report') }}" method="POST" enctype="multipart/form-data">
+    
+    <!-- Step 1: Camera & Photo Capture -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">1. Camera Photos & Proof (Max 3)</h3>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Auto-compressed client-side</span>
+      </div>
+      
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+        Photos help technicians bring the exact spare parts, ladders, or tools on their very first visit.
+      </p>
+
+      <div style="display: flex; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap;">
+        <button type="button" id="cameraBtn" class="btn btn-secondary">
+          <span>📷</span>
+          <span>Take Photo</span>
+        </button>
+        <button type="button" onclick="document.getElementById('photoInput').click()" class="btn btn-secondary">
+          <span>🖼️</span>
+          <span>Upload from Gallery</span>
+        </button>
+      </div>
+
+      <!-- Hidden file input -->
+      <input type="file" id="photoInput" name="photos" accept="image/*" multiple style="display: none;">
+
+      <!-- Styled Dropzone -->
+      <div class="photo-dropzone" id="photoDropzone">
+        <div style="font-size: 2rem; margin-bottom: 0.5rem;">📸</div>
+        <div style="font-weight: 700; color: var(--text-main); margin-bottom: 0.25rem;">
+          Click to browse or drop photos here
+        </div>
+        <div style="font-size: 0.8rem; color: var(--text-muted);">
+          Supports JPG, PNG, WEBP. Up to 3 photos automatically compressed to save mobile bandwidth.
+        </div>
+      </div>
+
+      <!-- Preview container -->
+      <div class="photo-previews" id="photoPreviews"></div>
+    </div>
+
+    <!-- Step 2: Describe the Problem & AI Auto-Assist -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">2. Describe the Problem</h3>
+        <button type="button" id="aiAssistBtn" class="btn btn-primary btn-sm">
+          <span>✨</span>
+          <span>AI Auto-Assist</span>
+        </button>
+      </div>
+
+      <!-- AI Suggestion Box (Hidden until clicked) -->
+      <div id="aiResultBox" class="ai-card" style="display: none;">
+        <div class="ai-card-header">
+          <div class="ai-card-title">
+            <span>✨</span>
+            <span>Local Smart AI Recommendations</span>
+          </div>
+          <button type="button" id="aiApplyBtn" class="btn btn-primary btn-sm">
+            Apply Suggestions
+          </button>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 0.75rem; font-size: 0.825rem; margin-bottom: 0.5rem;">
+          <div>
+            <span style="color: var(--text-light); font-size: 0.75rem; display: block;">Suggested Category:</span>
+            <strong id="aiSuggestedCategory" style="color: var(--text-main);">-</strong>
+          </div>
+          <div>
+            <span style="color: var(--text-light); font-size: 0.75rem; display: block;">Urgency:</span>
+            <strong id="aiSuggestedUrgency" style="color: var(--text-main);">-</strong>
+          </div>
+          <div>
+            <span style="color: var(--text-light); font-size: 0.75rem; display: block;">Dispatch To:</span>
+            <strong id="aiSuggestedDept" style="color: var(--text-main);">-</strong>
+          </div>
+        </div>
+
+        <div style="font-size: 0.8rem; font-style: italic; color: var(--text-muted); border-top: 1px dashed var(--primary-border); padding-top: 0.5rem;">
+          Suggested Headline: "<span id="aiSuggestedTitle"></span>"<br>
+          Summary: <span id="aiSuggestedSummary"></span>
+        </div>
+      </div>
+
+      <!-- Problem Description Textarea -->
+      <div class="form-group" style="margin-top: 1rem;">
+        <label class="form-label" for="descriptionInput">
+          Problem Description <span style="color: red;">*</span>
+        </label>
+        <textarea id="descriptionInput" name="description" class="form-control" rows="4" placeholder="e.g. Water fountain leaking continuously onto corridor tiles near room 204. Floor is slippery and students are stumbling..." required>{{ form_data.get('description', '') }}</textarea>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.35rem;">
+          💡 Tip: Type your description and click <strong>AI Auto-Assist</strong> above to automatically categorize and route your issue.
+        </div>
+      </div>
+
+      <!-- Issue Headline / Title -->
+      <div class="form-group">
+        <label class="form-label" for="titleInput">
+          Issue Headline / Title <span style="color: red;">*</span>
+        </label>
+        <input type="text" id="titleInput" name="title" class="form-control" placeholder="e.g. Water cooler leaking on 2nd floor corridor" value="{{ form_data.get('title', '') }}" required maxlength="120">
+      </div>
+    </div>
+
+    <!-- Step 3: Location, Category & Urgency -->
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">3. Location, Category & Routing</h3>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+        <!-- Category -->
+        <div class="form-group">
+          <label class="form-label" for="categorySelect">Issue Category</label>
+          <select id="categorySelect" name="category" class="form-control">
+            {% for cat in categories %}
+              <option value="{{ cat }}" {% if form_data.get('category') == cat %}selected{% endif %}>{{ cat }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Campus Location -->
+        <div class="form-group">
+          <label class="form-label" for="locationSelect">Campus Location</label>
+          <select id="locationSelect" name="location" class="form-control">
+            {% for loc in locations %}
+              <option value="{{ loc }}" {% if form_data.get('location') == loc %}selected{% endif %}>{{ loc }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <!-- Specific Room / Block -->
+      <div class="form-group">
+        <label class="form-label" for="roomBlockInput">
+          Specific Room, Block, Floor, or Landmark <span style="color: red;">*</span>
+        </label>
+        <input type="text" id="roomBlockInput" name="room_block" class="form-control" placeholder="e.g. Block A, Room 204, 2nd Floor Corridor" value="{{ form_data.get('room_block', '') }}" required>
+      </div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+        <!-- Urgency Level -->
+        <div class="form-group">
+          <label class="form-label" for="urgencySelect">Urgency Level</label>
+          <select id="urgencySelect" name="urgency" class="form-control">
+            {% for u in urgencies %}
+              <option value="{{ u }}" {% if (form_data.get('urgency') or 'Medium') == u %}selected{% endif %}>
+                {{ u }} {% if u == 'Critical' %}(Immediate Emergency){% elif u == 'High' %}(Impacts Many){% endif %}
+              </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Department Dispatch -->
+        <div class="form-group">
+          <label class="form-label" for="deptSelect">Assigned Department</label>
+          <select id="deptSelect" name="assigned_department" class="form-control">
+            <option value="Electrician">Electrician (Electrical Dept)</option>
+            <option value="Plumber">Plumber (Water Supply)</option>
+            <option value="Housekeeping">Housekeeping & Sanitation</option>
+            <option value="IT Support">IT Support & Wi-Fi</option>
+            <option value="Library In-charge">Library Facilities</option>
+            <option value="Warden">Hostel Warden</option>
+            <option value="Maintenance Head" selected>Campus Maintenance Head</option>
+            <option value="Principal Office">Principal Office</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Submitting As Info Banner -->
+    <div style="background-color: var(--surface-alt); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 0.85rem 1rem; margin-bottom: 1.5rem; display: flex; align-items: center; justify-content: space-between; font-size: 0.85rem;">
+      <div>
+        <span style="color: var(--text-muted);">Reporting as:</span>
+        <strong style="color: var(--text-main);">{{ current_user.name }} ({{ current_user.role }})</strong>
+      </div>
+      <span style="color: var(--primary); font-weight: 700;">Timeline begins immediately</span>
+    </div>
+
+    <!-- Form Submit Actions -->
+    <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+      <a href="{{ url_for('index') }}" class="btn btn-secondary">Cancel</a>
+      <button type="submit" class="btn btn-primary btn-lg">
+        <span>🚀</span>
+        <span>Submit Complaint</span>
+      </button>
+    </div>
+
+  </form>
+</div>
+{% endblock %}

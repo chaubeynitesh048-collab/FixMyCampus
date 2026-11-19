@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}FixMyCampus - Smart Campus Civic Portal{% endblock %}</title>
+  
+  <!-- Favicon placeholder -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23059669'><path d='M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5'/></svg>">
+  
+  <!-- Global Stylesheet -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  
+  <!-- Chart.js for Admin Visualizations -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <nav class="navbar">
+    <div class="nav-container">
+      <a href="{{ url_for('index') }}" class="nav-brand">
+        <div class="nav-brand-icon">🏛️</div>
+        <span>FixMyCampus</span>
+      </a>
+
+      <!-- Desktop Nav Links -->
+      <ul class="nav-links">
+        <li><a href="{{ url_for('index') }}" class="{% if request.endpoint == 'index' %}active{% endif %}">Home</a></li>
+        <li><a href="{{ url_for('report') }}" class="{% if request.endpoint == 'report' %}active{% endif %}">Report Issue</a></li>
+        <li><a href="{{ url_for('public_board') }}" class="{% if request.endpoint == 'public_board' %}active{% endif %}">Public Board</a></li>
+        <li><a href="{{ url_for('track') }}" class="{% if request.endpoint == 'track' %}active{% endif %}">Track</a></li>
+        <li><a href="{{ url_for('staff_portal') }}" class="{% if request.endpoint == 'staff_portal' %}active{% endif %}">Staff Portal</a></li>
+        <li><a href="{{ url_for('admin_dashboard') }}" class="{% if request.endpoint == 'admin_dashboard' %}active{% endif %}">Dashboard</a></li>
+      </ul>
+
+      <!-- Nav Actions -->
+      <div class="nav-actions">
+        <!-- Role Switcher Button -->
+        <button type="button" class="role-badge-pill" id="roleSwitcherBtn" title="Click to switch between Student and 8 Staff roles">
+          <span>👤</span>
+          <span>{{ current_user.role }}</span>
+          <span style="font-size: 0.65rem; opacity: 0.6;">▼</span>
+        </button>
+
+        <!-- Dark/Light Mode Toggle -->
+        <button type="button" class="btn-icon" id="themeToggle" aria-label="Toggle dark mode" title="Toggle Dark/Light Mode">
+          <span id="themeIcon">🌙</span>
+        </button>
+
+        <!-- Primary CTA -->
+        <a href="{{ url_for('report') }}" class="btn btn-primary btn-sm">
+          <span>➕</span>
+          <span>Report Problem</span>
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Flash Messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-container">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }}">
+            <span>{{ message }}</span>
+            <button type="button" onclick="this.parentElement.remove()" style="background:none;border:none;cursor:pointer;color:inherit;font-size:1.1rem;margin-left:1rem;">&times;</button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  <!-- Main Content Block -->
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Mobile Bottom Navigation Bar -->
+  <aside class="mobile-bottom-bar">
+    <div class="mobile-bottom-nav">
+      <a href="{{ url_for('index') }}" class="mobile-nav-item {% if request.endpoint == 'index' %}active{% endif %}">
+        <span>🏠</span>
+        <span>Home</span>
+      </a>
+      <a href="{{ url_for('public_board') }}" class="mobile-nav-item {% if request.endpoint == 'public_board' %}active{% endif %}">
+        <span>📋</span>
+        <span>Board</span>
+      </a>
+      <a href="{{ url_for('report') }}" class="mobile-nav-item {% if request.endpoint == 'report' %}active{% endif %}" style="color: var(--primary); font-weight: 700;">
+        <span>📸</span>
+        <span>Report</span>
+      </a>
+      <a href="{{ url_for('track') }}" class="mobile-nav-item {% if request.endpoint == 'track' %}active{% endif %}">
+        <span>⏱️</span>
+        <span>Track</span>
+      </a>
+      <a href="{{ url_for('staff_portal') }}" class="mobile-nav-item {% if request.endpoint == 'staff_portal' %}active{% endif %}">
+        <span>🛠️</span>
+        <span>Staff</span>
+      </a>
+    </div>
+  </aside>
+
+  <!-- Role Switcher Modal -->
+  <div id="roleSwitcherModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:200;align-items:center;justify-content:center;padding:1rem;">
+    <div class="card" style="max-width:480px;width:100%;max-height:90vh;overflow-y:auto;">
+      <div class="card-header">
+        <h3 class="card-title">🎭 Instant Role Switcher</h3>
+        <button type="button" id="roleCloseBtn" style="background:none;border:none;cursor:pointer;font-size:1.2rem;color:var(--text-muted);">&times;</button>
+      </div>
+      <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:1rem;">
+        Switch personas with 1 click to evaluate how the system looks to Students vs Wardens vs Technicians.
+      </p>
+      <form action="{{ url_for('switch_role') }}" method="POST">
+        <div style="display:grid;gap:0.5rem;">
+          {% for r in staff_roles %}
+            <button type="submit" name="role" value="{{ r.role }}" class="btn btn-secondary" style="justify-content:space-between;padding:0.75rem 1rem;{% if current_user.role == r.role %}border-color:var(--primary);background:var(--primary-light);font-weight:700;color:var(--primary);{% endif %}">
+              <div style="text-align:left;">
+                <div style="font-size:0.9rem;">{{ r.role }}</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);">{{ r.name }} ({{ r.dept }})</div>
+              </div>
+              {% if current_user.role == r.role %}<span>✓ Active</span>{% endif %}
+            </button>
+          {% endfor %}
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Camera Live Viewfinder Modal -->
+  <div id="cameraModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:300;align-items:center;justify-content:center;padding:1rem;">
+    <div style="background:var(--surface);border-radius:var(--radius-lg);padding:1.5rem;max-width:500px;width:100%;text-align:center;">
+      <h3 style="font-weight:700;margin-bottom:1rem;color:var(--text-main);">📸 Device Camera Viewfinder</h3>
+      <div style="border-radius:var(--radius-md);overflow:hidden;background:#000;margin-bottom:1rem;height:300px;">
+        <video id="cameraVideo" autoplay playsinline style="width:100%;height:100%;object-fit:cover;"></video>
+      </div>
+      <div style="display:flex;justify-content:center;gap:1rem;">
+        <button type="button" id="cameraCaptureBtn" class="btn btn-primary btn-lg">
+          <span>📷</span>
+          <span>Snap Photo</span>
+        </button>
+        <button type="button" id="cameraCloseBtn" class="btn btn-secondary">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <p style="font-weight: 600; margin-bottom: 0.25rem;">🏛️ FixMyCampus - Transparent College Civic Governance</p>
+      <p style="font-size: 0.8rem; color: var(--text-light);">
+        Powered by Python, Flask, SQLite & Vanilla JS. Fast, local, and privacy-preserving.
+      </p>
+    </div>
+  </footer>
+
+  <!-- Client Script -->
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

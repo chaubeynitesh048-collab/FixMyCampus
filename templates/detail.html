@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block title %}{{ complaint.complaint_id }} - {{ complaint.title }} | FixMyCampus{% endblock %}
+
+{% block content %}
+<div class="container" style="max-width: 900px;">
+  <!-- Back Link -->
+  <div style="margin-bottom: 1rem;">
+    <a href="{{ url_for('public_board') }}" style="text-decoration: none; color: var(--text-muted); font-size: 0.85rem; font-weight: 600;">
+      &larr; Back to Public Board
+    </a>
+  </div>
+
+  <!-- Header Card -->
+  <div class="card">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 0.75rem;">
+      <div style="display: flex; align-items: center; gap: 0.75rem;">
+        <span class="complaint-id" style="font-size: 1rem; padding: 0.35rem 0.75rem;">{{ complaint.complaint_id }}</span>
+        <span class="badge badge-{{ complaint.urgency|lower }}">{{ complaint.urgency }} Urgency</span>
+        <span class="badge badge-{{ complaint.status|lower|replace(' ', '') }}">{{ complaint.status }}</span>
+      </div>
+
+      <!-- Upvote button -->
+      <button type="button" class="upvote-btn {% if has_upvoted %}upvoted{% endif %}" data-id="{{ complaint.id }}">
+        <span>👍 Me Too</span>
+        <span class="upvote-count">{{ complaint.upvotes }}</span>
+      </button>
+    </div>
+
+    <h1 style="font-size: 1.65rem; font-weight: 800; color: var(--text-main); margin-bottom: 0.5rem;">
+      {{ complaint.title }}
+    </h1>
+
+    <p style="font-size: 0.95rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 1rem;">
+      {{ complaint.description }}
+    </p>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; background: var(--surface-alt); padding: 0.85rem 1rem; border-radius: var(--radius-md); font-size: 0.85rem; border: 1px solid var(--border);">
+      <div>
+        <span style="color: var(--text-light); font-size: 0.75rem; display: block;">Campus Location:</span>
+        <strong style="color: var(--text-main);">{{ complaint.location }}</strong>
+      </div>
+      <div>
+        <span style="color: var(--text-light); font-size: 0.75rem; display: block;">Specific Room/Block:</span>
+        <strong style="color: var(--text-main);">{{ complaint.room_block }}</strong>
+      </div>
+      <div>
+        <span style="color: var(--text-light); font-size: 0.75rem; display: block;">Responsible Department:</span>
+        <strong style="color: var(--text-main);">{{ complaint.assigned_department }}</strong>
+      </div>
+      <div>
+        <span style="color: var(--text-light); font-size: 0.75rem; display: block;">Assigned Staff:</span>
+        <strong style="color: var(--text-main);">{{ complaint.assigned_staff_name or 'Awaiting Assignment' }}</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- 48-Hour SLA Escalation Banner -->
+  {% if complaint.is_escalated and complaint.status != 'Resolved' %}
+    <div class="card" style="border-color: #ef4444; background: linear-gradient(135deg, rgba(239, 68, 68, 0.08), rgba(249, 115, 22, 0.08));">
+      <div style="display: flex; align-items: flex-start; gap: 0.75rem;">
+        <span style="font-size: 1.5rem;">🚨</span>
+        <div>
+          <h3 style="font-size: 1rem; font-weight: 700; color: #b91c1c; margin-bottom: 0.25rem;">
+            48-Hour SLA Exceeded — Auto-Escalated to Tier {{ complaint.escalated_tier }}
+          </h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted);">
+            This ticket remained unresolved past the campus standard 48-hour resolution window.
+            {% if complaint.escalated_tier == 2 %}
+              It has been escalated directly to <strong>Campus Maintenance Head (Vikram Singh)</strong> for immediate intervention.
+            {% else %}
+              It has been escalated directly to the <strong>Principal's Office (Dr. S. K. Mahapatra)</strong>.
+            {% endif %}
+          </p>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- Before & After Photo Comparison -->
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">📸 Visual Evidence (Before vs After)</h3>
+      <span style="font-size: 0.8rem; color: var(--text-muted);">Inspect technician proof of work</span>
+    </div>
+
+    <div class="comparison-grid">
+      <!-- Before Photo (Student) -->
+      <div class="comparison-box">
+        <div class="comparison-label" style="color: #b91c1c;">
+          🔴 Before (Problem Reported)
+        </div>
+        {% if complaint.photos %}
+          <img src="{{ url_for('static', filename='uploads/' ~ complaint.photos[0]) }}" alt="Before" class="comparison-img" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=600&q=80';">
+        {% else %}
+          <div style="height: 200px; display: flex; align-items: center; justify-content: center; color: var(--text-light); font-size: 0.85rem;">
+            No photo attached by student
+          </div>
+        {% endif %}
+      </div>
+
+      <!-- After Photo (Staff) -->
+      <div class="comparison-box">
+        <div class="comparison-label" style="color: #15803d;">
+          🟢 After (Technician Resolution)
+        </div>
+        {% if complaint.after_photo_path %}
+          <img src="{{ url_for('static', filename='uploads/' ~ complaint.after_photo_path) }}" alt="After" class="comparison-img" onerror="this.onerror=null; this.src='https://images.unsplash.com/photo-1581092335397-9583fe92d232?auto=format&fit=crop&w=600&q=80';">
+        {% else %}
+          <div style="height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-light); font-size: 0.85rem; padding: 1rem; text-align: center;">
+            <span style="font-size: 1.5rem; margin-bottom: 0.5rem;">⏳</span>
+            <span>Technician has not uploaded an After Photo yet.</span>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- VISUAL TRACKING TIMELINE (Most Important Feature) -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <h3 class="card-title">⏱️ Visual Tracking Timeline</h3>
+        <p style="font-size: 0.8rem; color: var(--text-muted);">
+          Every stage records date, time, actor identity, and official remarks.
+        </p>
+      </div>
+    </div>
+
+    <div class="timeline-stepper">
+      {% for event in complaint.timeline %}
+        <div class="timeline-step active {% if event.stage == 'Escalated' %}escalated{% endif %}">
+          <div class="timeline-marker">
+            {% if event.stage == 'Submitted' %}📝
+            {% elif event.stage == 'Received by Dept' %}📥
+            {% elif event.stage == 'Assigned' %}👤
+            {% elif event.stage == 'In Progress' %}⚙️
+            {% elif event.stage == 'Resolved' %}✅
+            {% elif event.stage == 'Escalated' %}🚨
+            {% elif event.stage == 'Confirmed' %}⭐
+            {% elif event.stage == 'Reopened' %}🔄
+            {% else %}●{% endif %}
+          </div>
+
+          <div class="timeline-content">
+            <div class="timeline-step-header">
+              <span class="timeline-step-title">{{ event.stage }}</span>
+              <span class="timeline-step-time" title="{{ event.created_at }}">
+                🕒 {{ time_ago(event.created_at) }}
+              </span>
+            </div>
+
+            <div class="timeline-step-actor">
+              By: {{ event.action_by_name }} ({{ event.action_by_role }})
+            </div>
+
+            {% if event.remark %}
+              <div class="timeline-step-remark">
+                "{{ event.remark }}"
+              </div>
+            {% endif %}
+
+            {% if event.after_photo_path %}
+              <div style="margin-top: 0.5rem;">
+                <span style="font-size: 0.75rem; font-weight: 700; color: var(--primary);">Attached Proof Photo:</span>
+                <img src="{{ url_for('static', filename='uploads/' ~ event.after_photo_path) }}" alt="Proof" style="display:block;max-width:200px;border-radius:var(--radius-sm);margin-top:0.25rem;border:1px solid var(--border);" onerror="this.style.display='none'">
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Student Verification Card (Rating / Reopen) -->
+  {% if complaint.status == 'Resolved' and not complaint.student_rating %}
+    <div class="card" style="border: 2px solid var(--primary-border); background: var(--primary-light);">
+      <div class="card-header">
+        <h3 class="card-title" style="color: var(--primary);">
+          ⭐ Confirm Resolution & Student Review
+        </h3>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+        Staff marked this problem as resolved. Please inspect the fix. You can confirm resolution with a star rating or reopen the ticket if unsatisfied.
+      </p>
+
+      <!-- Rating Form -->
+      <form action="{{ url_for('review_resolution', complaint_id=complaint.id) }}" method="POST" style="margin-bottom: 1.5rem;">
+        <input type="hidden" name="rating" id="ratingInput" value="5">
+        
+        <div class="form-group">
+          <label class="form-label">Rate the Resolution Quality:</label>
+          <div class="star-rating" id="starRatingContainer">
+            <span class="star active" data-val="1">★</span>
+            <span class="star active" data-val="2">★</span>
+            <span class="star active" data-val="3">★</span>
+            <span class="star active" data-val="4">★</span>
+            <span class="star active" data-val="5">★</span>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="feedback">Student Feedback Note (Optional):</label>
+          <input type="text" name="feedback" id="feedback" class="form-control" placeholder="e.g. Great job, technician arrived quickly and fixed the leak perfectly.">
+        </div>
+
+        <button type="submit" class="btn btn-primary">
+          <span>✅</span>
+          <span>Confirm Issue Solved</span>
+        </button>
+      </form>
+
+      <!-- Reopen Form -->
+      <details style="border-top: 1px dashed var(--border); padding-top: 1rem;">
+        <summary style="font-size: 0.85rem; font-weight: 700; color: #c2410c; cursor: pointer;">
+          Problem still persists? Click here to Reopen Ticket
+        </summary>
+        <form action="{{ url_for('reopen_ticket', complaint_id=complaint.id) }}" method="POST" style="margin-top: 0.75rem;">
+          <div class="form-group">
+            <label class="form-label" for="reason">Reason for Reopening:</label>
+            <input type="text" name="reason" id="reason" class="form-control" placeholder="e.g. Water is still leaking when tap is opened..." required>
+          </div>
+          <button type="submit" class="btn btn-secondary" style="border-color: #f97316; color: #c2410c;">
+            <span>🔄</span>
+            <span>Reopen Complaint</span>
+          </button>
+        </form>
+      </details>
+    </div>
+  {% elif complaint.student_rating %}
+    <div class="card" style="background: var(--surface-alt);">
+      <h3 class="card-title" style="margin-bottom: 0.5rem;">⭐ Verified Student Rating</h3>
+      <div style="font-size: 1.25rem; color: #f59e0b; margin-bottom: 0.25rem;">
+        {% for _ in range(complaint.student_rating) %}★{% endfor %}
+        <span style="font-size: 0.9rem; color: var(--text-muted);">({{ complaint.student_rating }}/5 stars)</span>
+      </div>
+      {% if complaint.student_feedback %}
+        <p style="font-size: 0.85rem; font-style: italic; color: var(--text-muted);">
+          "{{ complaint.student_feedback }}"
+        </p>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <!-- Staff / Admin Action Panel -->
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title">🛠️ Staff Status Update Panel</h3>
+      <span class="role-badge-pill">Acting as: {{ current_user.role }}</span>
+    </div>
+    
+    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+      Authorized technicians and wardens update complaint progress here. When marking "Resolved", please attach an After Photo.
+    </p>
+
+    <form action="{{ url_for('update_status', complaint_id=complaint.id) }}" method="POST" enctype="multipart/form-data">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+        <div class="form-group">
+          <label class="form-label" for="newStatusSelect">Update Milestone Status:</label>
+          <select name="status" id="newStatusSelect" class="form-control">
+            <option value="Received by Dept" {% if complaint.status == 'Submitted' %}selected{% endif %}>Received by Dept</option>
+            <option value="Assigned">Assigned to Technician</option>
+            <option value="In Progress" {% if complaint.status == 'Assigned' %}selected{% endif %}>In Progress</option>
+            <option value="Resolved" {% if complaint.status == 'In Progress' %}selected{% endif %}>Resolved</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="afterPhotoInput">Upload "After" Proof Photo (Optional):</label>
+          <input type="file" name="after_photo" id="afterPhotoInput" class="form-control" accept="image/*">
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="staffRemark">Technician Remark / Update Note:</label>
+        <textarea name="remark" id="staffRemark" class="form-control" rows="2" placeholder="e.g. Replaced leaking valve gasket. Flow tested for 10 minutes without drip."></textarea>
+      </div>
+
+      <button type="submit" class="btn btn-primary">
+        <span>💾</span>
+        <span>Record Timeline Update</span>
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}
