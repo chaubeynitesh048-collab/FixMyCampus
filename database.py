@@ -9,7 +9,8 @@ import json
 import sqlite3
 from datetime import datetime, timedelta
 from flask import g
-
+import secrets
+from werkzeug.security import generate_password_hash, check_password_hash
 def get_db_path():
     """Returns absolute or relative SQLite database path."""
     return os.getenv("DATABASE", "campus_issues.db")
@@ -665,3 +666,148 @@ def seed_sample_data():
             
     conn.commit()
     conn.close()
+
+
+# ============================================
+# AUTHENTICATION DATABASE FUNCTIONS
+# ============================================
+
+def create_student_account(full_name, college_id, password):
+    """Create a student account with a securely hashed password."""
+    conn = get_db()
+
+    password_hash = generate_password_hash(password)
+
+    cursor = conn.execute("""
+        INSERT INTO users (
+            role, full_name, college_id, password_hash, status
+        )
+        VALUES ('student', ?, ?, ?, 'active')
+    """, (full_name.strip(), college_id.strip(), password_hash))
+
+    conn.commit()
+    return cursor.lastrowid
+
+
+def get_student_by_college_id(college_id):
+    """Find a student using their college ID."""
+    conn = get_db()
+
+    row = conn.execute("""
+        SELECT * FROM users
+        WHERE role = 'student' AND college_id = ?
+    """, (college_id.strip(),)).fetchone()
+
+    return dict(row) if row else None
+
+
+def authenticate_student(college_id, password):
+    """Verify student credentials."""
+    user = get_student_by_college_id(college_id)
+
+    if not user or user["status"] != "active":
+        return None
+
+    if check_password_hash(user["password_hash"], password):
+        return user
+
+    return None
+
+
+def create_staff_account(full_name, mobile_number, department,
+                         staff_code, created_by):
+    """Create a staff account through an authorized admin."""
+    conn = get_db()
+
+    staff_code_hash = generate_password_hash(staff_code)
+
+    cursor = conn.execute("""
+        INSERT INTO users (
+            role, full_name, mobile_number, department,
+            staff_code_hash, status, created_by
+        )
+        VALUES ('staff', ?, ?, ?, ?, 'active', ?)
+    """, (
+        full_name.strip(),
+        mobile_number.strip(),
+        department.strip(),
+        staff_code_hash,
+        created_by
+    ))
+
+    conn.commit()
+    return cursor.lastrowid
+
+
+def authenticate_staff(mobile_number, staff_code):
+    """Verify staff credentials."""
+    conn = get_db()
+
+    row = conn.execute("""
+        SELECT * FROM users
+        WHERE role = 'staff' AND mobile_number = ?
+    """, (mobile_number.strip(),)).fetchone()
+
+    if not row:
+        return None
+
+    user = dict(row)
+
+    if user["status"] != "active":
+        return None
+
+    if check_password_hash(user["staff_code_hash"], staff_code):
+        return user
+
+    return None
+
+
+def create_admin_account(username, password):
+    """Create an admin account."""
+    conn = get_db()
+
+    password_hash = generate_password_hash(password)
+
+    cursor = conn.execute("""
+        INSERT INTO users (
+            role, full_name, username, password_hash, status
+        )
+        VALUES ('admin', 'System Administrator', ?, ?, 'active')
+    """, (username.strip(), password_hash))
+
+    conn.commit()
+    return cursor.lastrowid
+
+
+def authenticate_admin(username, password):
+    """Verify admin credentials."""
+    conn = get_db()
+
+    row = conn.execute("""
+        SELECT * FROM users
+        WHERE role = 'admin' AND username = ?
+    """, (username.strip(),)).fetchone()
+
+    if not row:
+        return None
+
+    user = dict(row)
+
+    if user["status"] != "active":
+        return None
+
+    if check_password_hash(user["password_hash"], password):
+        return user
+
+    return None
+
+
+def get_user_by_id(user_id):
+    """Fetch an account using its database ID."""
+    conn = get_db()
+
+    row = conn.execute(
+        "SELECT * FROM users WHERE id = ?", (user_id,)
+    ).fetchone()
+
+    return dict(row) if row else None

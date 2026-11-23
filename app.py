@@ -15,6 +15,8 @@ from flask import (
 from werkzeug.utils import secure_filename
 
 import database
+import sqlite3
+from functools import wraps
 
 # Load environment configuration
 load_dotenv()
@@ -131,21 +133,267 @@ def format_date(dt_val):
             return dt_val
     return dt_val.strftime("%b %d, %Y at %I:%M %p")
 
+def get_authenticated_account():
+    """Returns the currently logged-in database user."""
+    user_id = session.get("auth_user_id")
+
+    if not user_id:
+        return None
+
+    return database.get_user_by_id(user_id)
+
 @app.context_processor
 def inject_global_data():
-    current_role_name = session.get("current_role", "Student")
-    current_role_obj = next((r for r in STAFF_ROLES if r["role"] == current_role_name), STAFF_ROLES[0])
+
+    account = get_authenticated_account()
+
+    if not account:
+        current_user = STAFF_ROLES[0]
+
+    elif account["role"] == "student":
+        current_user = {
+            "role": "Student",
+            "name": account["full_name"],
+            "dept": "Student Body",
+            "is_staff": False
+        }
+
+    elif account["role"] == "staff":
+        current_user = {
+            "role": account["department"],
+            "name": account["full_name"],
+            "dept": account["department"],
+            "is_staff": True
+        }
+
+    else:
+        current_user = {
+            "role": "Admin",
+            "name": account["full_name"],
+            "dept": "Administration",
+            "is_staff": True
+        }
+
     return {
         "locations": CAMPUS_LOCATIONS,
         "categories": CATEGORIES,
         "urgencies": URGENCIES,
         "statuses": STATUSES,
         "staff_roles": STAFF_ROLES,
-        "current_user": current_role_obj,
+        "current_user": current_user,
         "now_year": datetime.now().year,
         "time_ago": time_ago,
         "format_date": format_date
     }
+
+# ============================================
+# AUTHENTICATION & LOGIN SYSTEM
+# ============================================
+
+def login_required(view):
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        user_id = session.get("auth_user_id")
+        user = database.get_user_by_id(user_id) if user_id else None
+
+        if not user or user["status"] != "active":
+            session.pop("auth_user_id", None)
+            session.pop("auth_role", None)
+            flash("Please login to continue.", "warning")
+            return redirect(url_for("student_login"))
+
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+def role_required(*allowed_roles):
+    def decorator(view):
+        @wraps(view)
+        @login_required
+        def wrapped(*args, **kwargs):
+            user = database.get_user_by_id(session.get("auth_user_id"))
+
+            if not user or user["role"] not in allowed_roles:
+                abort(403)
+
+            return view(*args, **kwargs)
+
+        return wrapped
+    return decorator
+
+
+# ---------- STUDENT SIGNUP ----------
+
+@app.route("/student/signup", methods=["GET", "POST"])
+def student_signup():
+
+    if request.method == "POST":
+        full_name = request.form.get("full_name", "").strip()
+        college_id = request.form.get("college_id", "").strip()
+        password = request.form.get("password", "")
+        confirm_password = request.form.get("confirm_password", "")
+
+        if not full_name or not college_id or not password:
+            flash("All fields are required.", "danger")
+
+        elif len(password) < 8:
+            flash("Password must contain at least 8 characters.", "danger")
+
+        elif password != confirm_password:
+            flash("Passwords do not match.", "danger")
+
+        else:
+            try:
+                database.create_student_account(
+                    full_name, college_id, password
+                )
+
+                flash("Student account created successfully. Please login.", "success")
+                return redirect(url_for("student_login"))
+
+            except sqlite3.IntegrityError:
+                flash("This College ID is already registered.", "danger")
+
+            except sqlite3.Error:
+                flash("Database error. Please try again.", "danger")
+
+    return render_template("student_signup.html")
+
+
+# ---------- STUDENT LOGIN ----------
+
+@app.route("/student/login", methods=["GET", "POST"])
+def student_login():
+
+    if request.method == "POST":
+        college_id = request.form.get("college_id", "").strip()
+        password = request.form.get("password", "")
+
+        user = database.authenticate_student(college_id, password)
+
+        if user:
+            session.clear()
+            session["auth_user_id"] = user["id"]
+            session["auth_role"] = "student"
+
+            flash("Student login successful!", "success")
+            return redirect(url_for("index"))
+
+        flash("Invalid College ID or password.", "danger")
+
+    return render_template("student_login.html")
+
+
+# ---------- STAFF LOGIN ----------
+
+@app.route("/staff/login", methods=["GET", "POST"])
+def staff_login():
+
+    if request.method == "POST":
+        mobile_number = request.form.get("mobile_number", "").strip()
+        staff_code = request.form.get("staff_code", "")
+
+        user = database.authenticate_staff(mobile_number, staff_code)
+
+        if user:
+            session.clear()
+            session["auth_user_id"] = user["id"]
+            session["auth_role"] = "staff"
+
+            flash("Staff login successful!", "success")
+            return redirect(url_for("staff_portal"))
+
+        flash("Invalid mobile number or staff code.", "danger")
+
+    return render_template("staff_login.html")
+
+
+# ---------- ADMIN LOGIN ----------
+
+@app.route("/admin/login", methods=["GET", "POST"])
+def admin_login():
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        user = database.authenticate_admin(username, password)
+
+        if user:
+            session.clear()
+            session["auth_user_id"] = user["id"]
+            session["auth_role"] = "admin"
+
+            flash("Admin login successful!", "success")
+            return redirect(url_for("admin_dashboard"))
+
+        flash("Invalid admin credentials.", "danger")
+
+    return render_template("admin_login.html")
+
+
+# ---------- ADMIN CREATE STAFF ACCOUNT ----------
+
+@app.route("/admin/create-staff", methods=["GET", "POST"])
+@role_required("admin")
+def admin_create_staff():
+
+    if request.method == "POST":
+
+        full_name = request.form.get("full_name", "").strip()
+        mobile_number = request.form.get("mobile_number", "").strip()
+        department = request.form.get("department", "").strip()
+        staff_code = request.form.get("staff_code", "")
+        confirm_code = request.form.get("confirm_code", "")
+
+        if not all([full_name, mobile_number, department, staff_code]):
+            flash("All fields are required.", "danger")
+
+        elif not mobile_number.isdigit() or len(mobile_number) != 10:
+            flash("Enter a valid 10-digit mobile number.", "danger")
+
+        elif len(staff_code) < 12:
+            flash("Staff code must contain at least 12 characters.", "danger")
+
+        elif staff_code != confirm_code:
+            flash("Staff codes do not match.", "danger")
+
+        else:
+            try:
+                database.create_staff_account(
+                    full_name=full_name,
+                    mobile_number=mobile_number,
+                    department=department,
+                    staff_code=staff_code,
+                    created_by=session["auth_user_id"]
+                )
+
+                flash("Staff account created successfully!", "success")
+                return redirect(url_for("admin_create_staff"))
+
+            except sqlite3.IntegrityError:
+                flash("This mobile number is already registered.", "danger")
+
+            except sqlite3.Error:
+                app.logger.exception("Staff account creation failed")
+                flash("Database error. Please try again.", "danger")
+
+    return render_template("create_staff.html")
+
+
+# ---------- LOGOUT ----------
+
+@app.route("/logout")
+def logout():
+
+    session.pop("auth_user_id", None)
+    session.pop("auth_role", None)
+    session.pop("current_role", None)
+
+    flash("You have been logged out.", "info")
+    return redirect(url_for("index"))
+
 
 # ----------------- WEB ROUTES ----------------- #
 
@@ -157,6 +405,7 @@ def index():
     return render_template("index.html", stats=stats, recent=recent)
 
 @app.route("/report", methods=["GET", "POST"])
+@role_required("student")
 def report():
     """Submit a campus problem with photos and local AI assistance."""
     if request.method == "POST":
@@ -197,9 +446,7 @@ def report():
             if saved and saved not in saved_photos:
                 saved_photos.append(saved)
                 
-        # Current reporter info
-        current_role_name = session.get("current_role", "Student")
-        current_role_obj = next((r for r in STAFF_ROLES if r["role"] == current_role_name), STAFF_ROLES[0])
+        account = get_authenticated_account()
         
         db_id, comp_id = database.insert_complaint(
             title=title,
@@ -210,8 +457,7 @@ def report():
             urgency=urgency,
             photos=saved_photos,
             assigned_department=assigned_dept,
-            reporter_name=current_role_obj["name"],
-            reporter_email=f"{current_role_obj['name'].lower().replace(' ', '.')}@campus.edu"
+            reporter_name=account["full_name"]
         )
         
         flash(f"Complaint {comp_id} submitted successfully! Your tracking timeline has started.", "success")
@@ -279,22 +525,28 @@ def complaint_detail(complaint_id):
     return render_template("detail.html", complaint=complaint, has_upvoted=has_upvoted)
 
 @app.route("/complaint/<int:complaint_id>/status", methods=["POST"])
+@role_required("staff", "admin")
 def update_status(complaint_id):
-    """Staff updates complaint milestone, remarks, and optional After Photo."""
+    """Staff updates complaint milestone and remarks."""
+
     new_status = request.form.get("status", "").strip()
     remark = request.form.get("remark", "").strip()
     after_file = request.files.get("after_photo")
-    
+
     after_photo_path = None
+
     if after_file and after_file.filename != "":
         after_photo_path = save_uploaded_photo(after_file)
-        
-    current_role_name = session.get("current_role", "Student")
-    current_role_obj = next((r for r in STAFF_ROLES if r["role"] == current_role_name), STAFF_ROLES[0])
-    
-    staff_name = current_role_obj["name"]
-    staff_role = current_role_obj["role"]
-    
+
+    account = get_authenticated_account()
+
+    staff_name = account["full_name"]
+    staff_role = (
+        account["department"]
+        if account["role"] == "staff"
+        else "Admin"
+    )
+
     database.update_complaint_status(
         complaint_id=complaint_id,
         new_status=new_status,
@@ -303,11 +555,15 @@ def update_status(complaint_id):
         remark=remark,
         after_photo_path=after_photo_path
     )
-    
-    flash(f"Status updated to '{new_status}' with authenticated staff remark.", "success")
-    return redirect(url_for("complaint_detail", complaint_id=complaint_id))
+
+    flash(f"Status updated to '{new_status}'.", "success")
+
+    return redirect(
+        url_for("complaint_detail", complaint_id=complaint_id)
+    )
 
 @app.route("/complaint/<int:complaint_id>/review", methods=["POST"])
+@role_required("student")
 def review_resolution(complaint_id):
     """Student submits 1 to 5 star rating and confirmation."""
     rating = int(request.form.get("rating", 5))
@@ -321,6 +577,7 @@ def review_resolution(complaint_id):
     return redirect(url_for("complaint_detail", complaint_id=complaint_id))
 
 @app.route("/complaint/<int:complaint_id>/reopen", methods=["POST"])
+@role_required("student")
 def reopen_ticket(complaint_id):
     """Student reopens a complaint if the fix was incomplete."""
     reason = request.form.get("reason", "").strip()
@@ -335,6 +592,7 @@ def reopen_ticket(complaint_id):
     return redirect(url_for("complaint_detail", complaint_id=complaint_id))
 
 @app.route("/staff")
+@role_required("staff", "admin")
 def staff_portal():
     """Staff & Department workbench for viewing and managing assigned tickets."""
     current_role_name = session.get("current_role", "Student")
@@ -348,18 +606,16 @@ def staff_portal():
     return render_template("staff.html", complaints=complaints, active_dept=dept_filter)
 
 @app.route("/dashboard")
+@role_required("admin")
 def admin_dashboard():
     """Executive Analytics Dashboard with Chart.js visualization data."""
     stats = database.get_dashboard_stats()
     return render_template("dashboard.html", stats=stats)
 
 @app.route("/switch-role", methods=["POST"])
+@login_required
 def switch_role():
-    """Instant 1-click role switcher for evaluating student vs staff views."""
-    new_role = request.form.get("role", "Student")
-    if any(r["role"] == new_role for r in STAFF_ROLES):
-        session["current_role"] = new_role
-        flash(f"Switched active view to: {new_role}", "info")
+    flash("Role switching is disabled.", "warning")
     return redirect(request.referrer or url_for("index"))
 
 # ----------------- AJAX / JSON APIS ----------------- #

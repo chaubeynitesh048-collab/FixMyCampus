@@ -1,0 +1,37 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Staff Login | FixMyCampus</title>
+</head>
+<body class="bg-slate-100 min-h-screen flex items-center justify-center p-4">
+
+<div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
+    <h1 class="text-3xl font-bold text-blue-700 text-center">FixMyCampus</h1>
+    <h2 class="text-xl font-semibold text-center mt-4">Faculty / Staff Login</h2>
+    <p class="text-gray-500 text-center text-sm mt-2">Authorized staff members only</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <p class="mt-4 p-3 rounded bg-red-100 text-red-700">{{ message }}</p>
+        {% endfor %}
+    {% endwith %}
+
+    <form method="POST" class="mt-6 space-y-4">
+        <input name="mobile_number" type="tel" placeholder="Registered Mobile Number"
+               required class="w-full border rounded-lg p-3">
+
+        <input name="staff_code" type="password" placeholder="Staff Access Code"
+               required class="w-full border rounded-lg p-3">
+
+        <button type="submit"
+                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white p-3 rounded-lg font-semibold">
+            Staff Login
+        </button>
+    </form>
+</div>
+</body>
+</html>

@@ -22,7 +22,11 @@ import database
 load_dotenv()
 
 # Initialize Flask application
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    template_folder="../templates",
+    static_folder="../static"
+)
 
 # Application Configuration from .env
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "dev-secret-key-change-me")

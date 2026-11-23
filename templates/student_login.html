@@ -1,0 +1,41 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Student Login | FixMyCampus</title>
+</head>
+<body class="bg-slate-100 min-h-screen flex items-center justify-center p-4">
+
+<div class="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
+    <h1 class="text-3xl font-bold text-blue-700 text-center">FixMyCampus</h1>
+    <h2 class="text-xl font-semibold text-center mt-4">Student Login</h2>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+            <p class="mt-4 p-3 rounded bg-red-100 text-red-700">{{ message }}</p>
+        {% endfor %}
+    {% endwith %}
+
+    <form method="POST" class="mt-6 space-y-4">
+        <input name="college_id" type="text" placeholder="College ID / Roll Number"
+               required class="w-full border rounded-lg p-3">
+
+        <input name="password" type="password" placeholder="Password"
+               required class="w-full border rounded-lg p-3">
+
+        <button type="submit"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg font-semibold">
+            Login
+        </button>
+    </form>
+
+    <p class="text-center mt-5 text-sm">
+        New student?
+        <a href="{{ url_for('student_signup') }}" class="text-blue-600 font-semibold">Create Account</a>
+    </p>
+</div>
+</body>
+</html>

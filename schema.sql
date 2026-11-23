@@ -56,3 +56,73 @@ CREATE INDEX IF NOT EXISTS idx_complaints_category ON complaints(category);
 CREATE INDEX IF NOT EXISTS idx_complaints_location ON complaints(location);
 CREATE INDEX IF NOT EXISTS idx_complaints_created ON complaints(created_at);
 CREATE INDEX IF NOT EXISTS idx_timeline_complaint ON timeline_events(complaint_id);
+
+
+-- ============================================
+-- FIXMYCAMPUS ROLE-BASED AUTHENTICATION
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    role TEXT NOT NULL CHECK (
+        role IN ('student', 'staff', 'admin')
+    ),
+
+    full_name TEXT NOT NULL,
+
+    college_id TEXT COLLATE NOCASE UNIQUE,
+    username TEXT COLLATE NOCASE UNIQUE,
+
+    mobile_number TEXT,
+    department TEXT,
+
+    password_hash TEXT,
+    staff_code_hash TEXT,
+
+    status TEXT NOT NULL DEFAULT 'pending'
+        CHECK (status IN ('pending', 'active', 'disabled')),
+
+    created_by INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_login_at TIMESTAMP,
+
+    FOREIGN KEY (created_by) REFERENCES users(id),
+
+    CHECK (
+        (role = 'student'
+            AND college_id IS NOT NULL
+            AND password_hash IS NOT NULL
+            AND staff_code_hash IS NULL
+            AND username IS NULL)
+        OR
+        (role = 'staff'
+            AND mobile_number IS NOT NULL
+            AND department IS NOT NULL
+            AND staff_code_hash IS NOT NULL
+            AND password_hash IS NULL
+            AND college_id IS NULL
+            AND username IS NULL)
+        OR
+        (role = 'admin'
+            AND username IS NOT NULL
+            AND password_hash IS NOT NULL
+            AND college_id IS NULL
+            AND mobile_number IS NULL
+            AND staff_code_hash IS NULL)
+    )
+);
+
+-- Only one Admin account
+CREATE UNIQUE INDEX IF NOT EXISTS idx_single_admin
+ON users(role)
+WHERE role = 'admin';
+
+-- Unique staff mobile numbers
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_staff_mobile
+ON users(mobile_number)
+WHERE role = 'staff';
+
+CREATE INDEX IF NOT EXISTS idx_users_role_status
+ON users(role, status);
+
